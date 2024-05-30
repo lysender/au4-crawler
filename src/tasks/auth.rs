@@ -3,7 +3,7 @@ use reqwest::Client;
 
 use crate::{
     error::Result,
-    models::auth::{AuthPayload, AuthSuccess},
+    models::auth::{AuthContext, AuthPayload, AuthSuccess},
 };
 
 use super::{JSON_CONTENT_TYPE, USER_AGENT};
@@ -13,7 +13,7 @@ pub async fn authenticate(
     token: &str,
     username: &str,
     password: &str,
-) -> Result<AuthSuccess> {
+) -> Result<AuthContext> {
     let url = format!("{}/auth/token/email", base_url);
     let payload = AuthPayload {
         username: username.to_string(),
@@ -30,13 +30,19 @@ pub async fn authenticate(
         .send()
         .await?;
 
-    if response.status().is_success() {
-        let auth_data: AuthSuccess = response.json().await?;
-        Ok(auth_data)
-    } else {
-        Err(anyhow!(
+    if !response.status().is_success() {
+        return Err(anyhow!(
             "Unable to authenticate. Error: {}",
             response.status()
-        ))
+        ));
     }
+
+    let auth_data: AuthSuccess = response.json().await?;
+    let Some(token) = auth_data.token else {
+        return Err(anyhow!("Unable to authenticate. No token received."));
+    };
+    Ok(AuthContext {
+        api_url: base_url.to_string(),
+        token,
+    })
 }

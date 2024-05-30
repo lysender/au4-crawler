@@ -19,3 +19,9 @@ pub struct AuthPayload {
     pub password: String,
     pub captcha_token: String,
 }
+
+#[derive(Debug, Clone)]
+pub struct AuthContext {
+    pub api_url: String,
+    pub token: String,
+}
