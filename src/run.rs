@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use bigdecimal::BigDecimal;
 use std::time::Instant;
 
@@ -5,7 +6,7 @@ use fake::faker::company::en::CatchPhase;
 use fake::Fake;
 use rand::Rng;
 
-use crate::config::Config;
+use crate::config::{Config, SingleTargetConfig};
 use crate::crawler::{
     create_issue, fetch_epics, fetch_initiatives, fetch_issue, fetch_issues, fetch_labels,
     fetch_me, fetch_members, fetch_project, fetch_projects, fetch_statuses,
@@ -21,21 +22,27 @@ pub async fn run(config: Config) -> Result<()> {
     let current_user = fetch_me(&config).await?;
     println!("Logged in as: {}", current_user.username);
 
-    let project = fetch_project(&config, config.project_id.as_str()).await?;
+    let Some(single_target_value) = &config.single_target else {
+        return Err(anyhow!("Single target config must be present."));
+    };
+
+    let single_target = single_target_value.clone();
+    let project_id = single_target.project_id.as_str();
+    let project = fetch_project(&config, project_id).await?;
     println!("{}: {}", project.key, project.name);
 
     // Collect statuses and labels
-    let labels = fetch_labels(&config, config.project_id.as_str()).await?;
-    let mut statuses = fetch_statuses(&config, config.project_id.as_str()).await?;
+    let labels = fetch_labels(&config, project_id).await?;
+    let mut statuses = fetch_statuses(&config, project_id).await?;
 
     // Remove last status, should not create issues as done
     if statuses.len() > 0 {
         statuses.pop();
     }
 
-    let initiatives = fetch_initiatives(&config, config.project_id.as_str()).await?;
-    let epics = fetch_epics(&config, config.project_id.as_str()).await?;
-    let members = fetch_members(&config, config.project_id.as_str()).await?;
+    let initiatives = fetch_initiatives(&config, project_id).await?;
+    let epics = fetch_epics(&config, project_id).await?;
+    let members = fetch_members(&config, project_id).await?;
     let hours = vec![
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
     ];
@@ -44,16 +51,16 @@ pub async fn run(config: Config) -> Result<()> {
     let project_preferences = project.preferences.unwrap();
 
     // Default issue type can be configured
-    let issue_type = match config.issue_type.clone() {
-        Some(value) => value,
-        None => project_preferences.issue_type.clone(),
+    let issue_type = match single_target.issue_type {
+        Some(value) => value.as_str(),
+        None => project_preferences.issue_type.as_str(),
     };
 
     let create_timer = Instant::now();
 
     let mut handles = vec![];
 
-    for _ in 0..config.issue_count {
+    for _ in 0..single_target.issue_count {
         let member = get_random_item(&members, 30);
         let label = get_random_item(&labels, 30);
 
@@ -62,7 +69,7 @@ pub async fn run(config: Config) -> Result<()> {
         let mut status: Option<&IssueStatus> = None;
 
         // Initiatives and epics do not have these properties
-        match issue_type.as_str() {
+        match issue_type {
             "initiative" => {
                 // Do nothing...
             }
@@ -87,7 +94,7 @@ pub async fn run(config: Config) -> Result<()> {
         );
 
         let mut payload = CreateIssueBody {
-            r#type: issue_type.clone(),
+            r#type: issue_type.to_string(),
             initiative_id: None,
             epic_id: None,
             parent_id: None,
@@ -129,7 +136,7 @@ pub async fn run(config: Config) -> Result<()> {
 
         let config_copy = config.clone();
         let handle = tokio::spawn(async move {
-            create_issue(&config_copy, config_copy.project_id.as_str(), &payload)
+            create_issue(&config_copy, project_id, &payload)
                 .await
                 .unwrap()
         });
@@ -214,13 +221,16 @@ fn get_random_item<T>(items: &Vec<T>, chance: u32) -> Option<&T> {
     None
 }
 
-pub async fn crawl_project_issues(config: Config) -> Result<()> {
+pub async fn crawl_project_issues(
+    config: Config,
+    single_target: &SingleTargetConfig,
+) -> Result<()> {
     let timer = Instant::now();
     let current_user = fetch_me(&config).await?;
     println!("Logged in as: {}", current_user.username);
 
-    let project_id = config.project_id.clone();
-    let project = fetch_project(&config, project_id.as_str()).await?;
+    let project_id = single_target.project_id.as_str();
+    let project = fetch_project(&config, project_id).await?;
     println!("{}: {}", project.key, project.name);
 
     let crawl_timer = Instant::now();
@@ -237,7 +247,7 @@ pub async fn crawl_project_issues(config: Config) -> Result<()> {
 
     while has_more {
         // Fetch listing
-        let listing = fetch_issues(&config, project_id.as_str(), page, 50).await?;
+        let listing = fetch_issues(&config, project_id, page, 50).await?;
 
         has_more = false;
         if listing.data.len() > 0 && listing.meta.total_records > 0 {
@@ -245,10 +255,9 @@ pub async fn crawl_project_issues(config: Config) -> Result<()> {
             let mut handles = vec![];
             for issue in listing.data {
                 let config_copy = config.clone();
-                let project_id_copy = project_id.clone();
                 let issue_id = issue.id.clone();
                 let handle = tokio::spawn(async move {
-                    fetch_issue(&config_copy, project_id_copy.as_str(), issue_id.as_str())
+                    fetch_issue(&config_copy, project_id, issue_id.as_str())
                         .await
                         .unwrap()
                 });

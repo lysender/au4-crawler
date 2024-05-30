@@ -40,5 +40,7 @@ async fn run_command(args: Args, config: Config) -> Result<()> {
             run::crawl_all_projects_issues(config).await?;
             Ok(())
         }
+        Commands::SimulateUsersReadonly => Ok(()),
+        Commands::SimulateUsersReadWrite => Ok(()),
     }
 }

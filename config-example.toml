@@ -10,6 +10,8 @@ users = [
     { username: "user4", password: "secret" },
     { username: "user5", password: "secret" },
 ]
+issue_count = 10
+issue_type = "user_story"
 
 # Single target project config
 # Usually do specific task only

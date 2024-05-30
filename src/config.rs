@@ -5,8 +5,28 @@ use std::{fs, path::PathBuf};
 
 #[derive(Clone, Deserialize, Debug)]
 pub struct Config {
-    pub token: String,
     pub base_url: String,
+    pub multi_target: Option<MultiTargetConfig>,
+    pub single_target: Option<SingleTargetConfig>,
+}
+
+#[derive(Clone, Deserialize, Debug)]
+pub struct MultiTargetConfig {
+    pub users: Vec<Credential>,
+    pub issue_count: u32,
+    pub issue_type: Option<String>,
+}
+
+#[derive(Clone, Deserialize, Debug)]
+pub struct Credential {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Clone, Deserialize, Debug)]
+pub struct SingleTargetConfig {
+    pub username: String,
+    pub password: String,
     pub project_id: String,
     pub issue_count: u32,
     pub issue_type: Option<String>,
@@ -29,25 +49,51 @@ impl Config {
             }
         };
 
-        if config.issue_count == 0 || config.issue_count > 100 {
-            return Err("Issue count must be between 1 to 100");
+        // At least one of single target or multi-target config must be present
+        if config.single_target.is_none() && config.multi_target.is_none() {
+            return Err("Either single target or multi-target config must be present.");
         }
 
-        // Validate issue type if present
-        if let Some(issue_type) = &config.issue_type {
-            let issue_types = vec![
-                String::from("initiative"),
-                String::from("epic"),
-                String::from("user_story"),
-                String::from("task"),
-                String::from("issue"),
-                String::from("feature"),
-                String::from("bug"),
-                String::from("test_case"),
-            ];
+        let issue_types = vec![
+            String::from("initiative"),
+            String::from("epic"),
+            String::from("user_story"),
+            String::from("task"),
+            String::from("issue"),
+            String::from("feature"),
+            String::from("bug"),
+            String::from("test_case"),
+        ];
 
-            if !issue_types.contains(&issue_type) {
-                return Err("Issue type is invalid.");
+        // Validate multi-target config
+        if let Some(multi_target) = &config.multi_target {
+            if multi_target.users.is_empty() {
+                return Err("At least one user must be present in multi-target config.");
+            }
+            if multi_target.issue_count == 0 || multi_target.issue_count > 100 {
+                return Err("Issue count must be between 1 to 100");
+            }
+            if let Some(issue_type) = &multi_target.issue_type {
+                if !issue_types.contains(&issue_type) {
+                    return Err("Issue type is invalid.");
+                }
+            }
+        }
+
+        // Validate single-target config
+        if let Some(single_target) = &config.single_target {
+            if single_target.project_id.is_empty() {
+                return Err("Project ID must be present in single-target config.");
+            }
+            if single_target.issue_count == 0 || single_target.issue_count > 100 {
+                return Err("Issue count must be between 1 to 100");
+            }
+
+            // Validate issue type if present
+            if let Some(issue_type) = &single_target.issue_type {
+                if !issue_types.contains(&issue_type) {
+                    return Err("Issue type is invalid.");
+                }
             }
         }
 
@@ -69,7 +115,7 @@ pub struct Args {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Create issues into project specified in config file
+    /// Create issues into a specific project
     Create,
 
     /// Crawl all issues of the specified project
@@ -77,4 +123,10 @@ pub enum Commands {
 
     /// Craw all issues from all visible projects
     CrawlAllIssues,
+
+    /// Simulate all users doing random actions as if they are working in their projects
+    SimulateUsersReadWrite,
+
+    /// Simulate all users doing random actions as if they are working in their projects
+    SimulateUsersReadonly,
 }
