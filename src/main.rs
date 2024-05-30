@@ -11,6 +11,7 @@ pub mod crawler;
 pub mod error;
 pub mod models;
 pub mod run;
+pub mod tasks;
 
 #[tokio::main]
 async fn main() {

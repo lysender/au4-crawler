@@ -1,6 +1,7 @@
 pub mod account;
 pub mod activity_log;
 pub mod actor;
+pub mod auth;
 pub mod authz;
 pub mod avatar;
 pub mod channel;
@@ -17,6 +18,7 @@ pub mod pagination;
 pub mod project;
 pub mod project_member;
 pub mod repository;
+pub mod response_data;
 pub mod sprint;
 pub mod user;
 pub mod user_preference;
