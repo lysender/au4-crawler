@@ -4,11 +4,21 @@ use std::time::Instant;
 
 use crate::config::Config;
 use crate::error::Result;
-use crate::model::{
-    Actor, Authz, ChannelKey, Comment, CreateIssueBody, Issue, IssueStatus, IssueTimelineItem,
-    Label, Organisation, PaginationResult, Project, ProjectMember, Repository, User,
-    UserPreference,
-};
+use crate::models::activity_log::ActivityLog;
+use crate::models::actor::Actor;
+use crate::models::authz::Authz;
+use crate::models::channel::ChannelKey;
+use crate::models::comment::Comment;
+use crate::models::issue::{CreateIssueBody, Issue};
+use crate::models::issue_status::IssueStatus;
+use crate::models::label::Label;
+use crate::models::organisation::Organisation;
+use crate::models::pagination::PaginationResult;
+use crate::models::project::Project;
+use crate::models::project_member::ProjectMember;
+use crate::models::repository::Repository;
+use crate::models::user::User;
+use crate::models::user_preference::UserPreference;
 
 #[derive(Debug)]
 pub struct ResponseData<T> {
@@ -618,8 +628,8 @@ pub async fn fetch_issue_timeline_items(
     issue_id: &str,
     page: u32,
     per_page: u32,
-) -> Result<ResponseData<PaginationResult<IssueTimelineItem>>> {
-    let mut res: ResponseData<PaginationResult<IssueTimelineItem>> = ResponseData {
+) -> Result<ResponseData<PaginationResult<ActivityLog>>> {
+    let mut res: ResponseData<PaginationResult<ActivityLog>> = ResponseData {
         duration: 0,
         data: None,
     };
@@ -641,7 +651,7 @@ pub async fn do_fetch_issue_timeline_items(
     issue_id: &str,
     page: u32,
     per_page: u32,
-) -> Result<PaginationResult<IssueTimelineItem>> {
+) -> Result<PaginationResult<ActivityLog>> {
     let url = format!(
         "{}/projects/{}/issues/{}/timelineitems",
         config.base_url.as_str(),
@@ -665,7 +675,7 @@ pub async fn do_fetch_issue_timeline_items(
         .await?;
 
     if response.status().is_success() {
-        let result: PaginationResult<IssueTimelineItem> = response.json().await?;
+        let result: PaginationResult<ActivityLog> = response.json().await?;
         Ok(result)
     } else {
         let message = format!(

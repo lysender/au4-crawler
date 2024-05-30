@@ -11,7 +11,10 @@ use crate::crawler::{
     fetch_me, fetch_members, fetch_project, fetch_projects, fetch_statuses,
 };
 use crate::error::Result;
-use crate::model::{CreateIssueBody, Issue, IssueStatus, PaginationResult, Project, ProjectSlim};
+use crate::models::issue::{CreateIssueBody, Issue};
+use crate::models::issue_status::IssueStatus;
+use crate::models::pagination::PaginationResult;
+use crate::models::project::{Project, ProjectSlim};
 
 pub async fn run(config: Config) -> Result<()> {
     let timer = Instant::now();

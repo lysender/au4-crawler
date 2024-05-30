@@ -9,7 +9,7 @@ use crate::error::Result;
 pub mod config;
 pub mod crawler;
 pub mod error;
-pub mod model;
+pub mod models;
 pub mod run;
 
 #[tokio::main]
