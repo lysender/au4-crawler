@@ -1,4 +1,5 @@
 # Global config
+[global]
 base_url = "https://example.com/api"
 jwt_secret = "secret"
 

@@ -4,6 +4,7 @@ pub mod issues;
 pub mod notifications;
 pub mod organisations;
 pub mod projects;
+pub mod runner;
 pub mod sprints;
 pub mod timeline;
 

@@ -5,10 +5,15 @@ use std::{fs, path::PathBuf};
 
 #[derive(Clone, Deserialize, Debug)]
 pub struct Config {
-    pub base_url: String,
-    pub jwt_secret: String,
+    pub global: GlobalConfig,
     pub multi_target: Option<MultiTargetConfig>,
     pub single_target: Option<SingleTargetConfig>,
+}
+
+#[derive(Clone, Deserialize, Debug)]
+pub struct GlobalConfig {
+    pub api_url: String,
+    pub jwt_secret: String,
 }
 
 #[derive(Clone, Deserialize, Debug)]
