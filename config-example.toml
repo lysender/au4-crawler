@@ -1,0 +1,21 @@
+# Global config
+base_url = "https://example.com/api"
+
+# Multiple users target, usually do many tasks at once
+[multi_target]
+users = [
+    { username: "user1", password: "secret" },
+    { username: "user2", password: "secret" },
+    { username: "user3", password: "secret" },
+    { username: "user4", password: "secret" },
+    { username: "user5", password: "secret" },
+]
+
+# Single target project config
+# Usually do specific task only
+[single_target]
+username = "user1"
+password = "secret"
+project_id = "123"
+issue_count = 10
+issue_type = "user_story"
