@@ -6,6 +6,7 @@ use std::{fs, path::PathBuf};
 #[derive(Clone, Deserialize, Debug)]
 pub struct Config {
     pub base_url: String,
+    pub jwt_secret: String,
     pub multi_target: Option<MultiTargetConfig>,
     pub single_target: Option<SingleTargetConfig>,
 }

@@ -1,5 +1,6 @@
 # Global config
 base_url = "https://example.com/api"
+jwt_secret = "secret"
 
 # Multiple users target, usually do many tasks at once
 [multi_target]

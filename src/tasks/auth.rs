@@ -8,25 +8,14 @@ use crate::{
 
 use super::{JSON_CONTENT_TYPE, USER_AGENT};
 
-pub async fn authenticate(
-    base_url: &str,
-    token: &str,
-    username: &str,
-    password: &str,
-) -> Result<AuthContext> {
-    let url = format!("{}/auth/token/email", base_url);
-    let payload = AuthPayload {
-        username: username.to_string(),
-        password: password.to_string(),
-        captcha_token: "".to_string(),
-    };
+pub async fn authenticate(api_url: &str, payload: AuthPayload) -> Result<AuthContext> {
+    let url = format!("{}/auth/token/email", api_url);
     let post_body = serde_json::to_string(&payload)?;
     let response = Client::new()
         .post(url)
         .body(post_body)
         .header(reqwest::header::USER_AGENT, USER_AGENT)
         .header(reqwest::header::CONTENT_TYPE, JSON_CONTENT_TYPE)
-        .bearer_auth(token)
         .send()
         .await?;
 
@@ -42,7 +31,7 @@ pub async fn authenticate(
         return Err(anyhow!("Unable to authenticate. No token received."));
     };
     Ok(AuthContext {
-        api_url: base_url.to_string(),
+        api_url: api_url.to_string(),
         token,
     })
 }

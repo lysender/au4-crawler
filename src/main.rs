@@ -12,6 +12,7 @@ pub mod error;
 pub mod models;
 pub mod run;
 pub mod tasks;
+pub mod token;
 
 #[tokio::main]
 async fn main() {
