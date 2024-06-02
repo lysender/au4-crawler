@@ -1,66 +1,75 @@
 use anyhow::anyhow;
 use bigdecimal::BigDecimal;
 use std::time::Instant;
+use tracing::{error, info};
 
 use fake::faker::company::en::CatchPhase;
 use fake::Fake;
 use rand::Rng;
 
 use crate::config::{Config, SingleTargetConfig};
-use crate::crawler::{
-    create_issue, fetch_epics, fetch_initiatives, fetch_issue, fetch_issues, fetch_labels,
-    fetch_me, fetch_members, fetch_project, fetch_projects, fetch_statuses,
-};
 use crate::error::Result;
+use crate::models::auth::AuthPayload;
 use crate::models::issue::{CreateIssueBody, Issue};
 use crate::models::issue_status::IssueStatus;
 use crate::models::pagination::PaginationResult;
 use crate::models::project::{Project, ProjectSlim};
+use crate::tasks::auth::authenticate;
+use crate::tasks::iam::fetch_project_members;
+use crate::tasks::issues::{create_issue, fetch_epics, fetch_initiatives};
+use crate::tasks::projects::{fetch_labels, fetch_project, fetch_statuses};
+use crate::token::create_captcha_token;
 
-pub async fn run(config: Config) -> Result<()> {
+pub async fn run_create_issues(config: Config) -> Result<()> {
     let timer = Instant::now();
-    let current_user = fetch_me(&config).await?;
-    println!("Logged in as: {}", current_user.username);
-
-    let Some(single_target_value) = &config.single_target else {
+    // Authenticate
+    let api_url = config.global.api_url.as_str();
+    let jwt_secret = config.global.jwt_secret.as_str();
+    let Some(target) = config.single_target else {
         return Err(anyhow!("Single target config must be present."));
     };
+    let captcha_token = create_captcha_token(jwt_secret)?;
+    let payload = AuthPayload {
+        username: target.username,
+        password: target.password,
+        captcha_token,
+    };
+    let context = authenticate(api_url, payload).await?;
 
-    let single_target = single_target_value.clone();
-    let project_id = single_target.project_id.as_str();
-    let project = fetch_project(&config, project_id).await?;
-    println!("{}: {}", project.key, project.name);
+    let project_id = target.project_id.as_str();
+    let project = fetch_project(&context, project_id).await?;
+    info!("{}: {}", project.key, project.name);
 
-    // Collect statuses and labels
-    let labels = fetch_labels(&config, project_id).await?;
-    let mut statuses = fetch_statuses(&config, project_id).await?;
+    let labels = fetch_labels(&context, project_id).await?;
 
+    let mut statuses = fetch_statuses(&context, project_id).await?;
     // Remove last status, should not create issues as done
     if statuses.len() > 0 {
         statuses.pop();
     }
 
-    let initiatives = fetch_initiatives(&config, project_id).await?;
-    let epics = fetch_epics(&config, project_id).await?;
-    let members = fetch_members(&config, project_id).await?;
+    let initiatives = fetch_initiatives(&context, project_id).await?;
+    let epics = fetch_epics(&context, project_id).await?;
+    let members = fetch_project_members(&context, project_id).await?;
     let hours = vec![
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
     ];
     let points = vec![1, 2, 3, 5, 8, 13, 21];
 
-    let project_preferences = project.preferences.unwrap();
+    let Some(pref) = project.preferences else {
+        return Err(anyhow!("Project preferences must be present."));
+    };
 
-    // Default issue type can be configured
-    let issue_type = match single_target.issue_type {
+    let issue_type = match target.issue_type.as_ref() {
         Some(value) => value.as_str(),
-        None => project_preferences.issue_type.as_str(),
+        None => pref.issue_type.as_str(),
     };
 
     let create_timer = Instant::now();
 
-    let mut handles = vec![];
+    let mut handles = Vec::with_capacity(target.issue_count as usize);
 
-    for _ in 0..single_target.issue_count {
+    for _ in 0..target.issue_count {
         let member = get_random_item(&members, 30);
         let label = get_random_item(&labels, 30);
 
@@ -101,13 +110,13 @@ pub async fn run(config: Config) -> Result<()> {
             assignee_id: None,
             title,
             description: Some(description),
-            estimate_type: Some(project_preferences.estimate_type.clone()),
+            estimate_type: Some(pref.estimate_type.clone()),
             estimate: Some(10),
             status: None,
             labels: default_labels,
         };
 
-        if project_preferences.estimate_type == String::from("points") {
+        if pref.estimate_type == String::from("points") {
             let estimate = get_random_item(&points, 100);
             payload.estimate = Some(*estimate.unwrap());
         } else {
@@ -134,12 +143,12 @@ pub async fn run(config: Config) -> Result<()> {
             payload.labels = vec![String::from(label_value.id.as_str())];
         }
 
-        let config_copy = config.clone();
-        let handle = tokio::spawn(async move {
-            create_issue(&config_copy, project_id, &payload)
-                .await
-                .unwrap()
-        });
+        let context_copy = context.clone();
+        let payload_copy = payload.clone();
+        let handle =
+            tokio::spawn(
+                async move { create_issue(&context_copy, project_id, &payload_copy).await },
+            );
 
         handles.push(handle);
     }
@@ -152,21 +161,32 @@ pub async fn run(config: Config) -> Result<()> {
     let mut sum: u128 = 0;
 
     for handle in handles {
-        let res = handle.await.unwrap();
-        if let None = res.data {
-            failed += 1;
-        }
+        match handle.await {
+            Ok(res) => match res {
+                Ok(issue_res) => {
+                    if let None = issue_res.data {
+                        failed += 1;
+                    }
 
-        sum += res.duration;
+                    sum += issue_res.duration;
 
-        if min_duration == 0 {
-            min_duration = res.duration;
-        } else if res.duration < min_duration {
-            min_duration = res.duration;
-        }
+                    if min_duration == 0 {
+                        min_duration = issue_res.duration;
+                    } else if issue_res.duration < min_duration {
+                        min_duration = issue_res.duration;
+                    }
 
-        if res.duration > max_duration {
-            max_duration = res.duration;
+                    if issue_res.duration > max_duration {
+                        max_duration = issue_res.duration;
+                    }
+                }
+                Err(create_err) => {
+                    error!("Error: {:?}", create_err);
+                }
+            },
+            Err(join_err) => {
+                error!("Error: {:?}", join_err);
+            }
         }
     }
 

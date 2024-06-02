@@ -33,9 +33,13 @@ pub async fn authenticate(api_url: &str, payload: AuthPayload) -> Result<AuthCon
     let Some(token) = auth_data.token else {
         return Err(anyhow!("Unable to authenticate. No token received."));
     };
+    let Some(user) = auth_data.user else {
+        return Err(anyhow!("Unable to authenticate. No user data received."));
+    };
     Ok(AuthContext {
         api_url: api_url.to_string(),
         token,
+        user,
     })
 }
 

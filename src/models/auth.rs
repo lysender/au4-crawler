@@ -24,4 +24,5 @@ pub struct AuthPayload {
 pub struct AuthContext {
     pub api_url: String,
     pub token: String,
+    pub user: User,
 }
