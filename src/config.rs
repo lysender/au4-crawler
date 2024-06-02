@@ -122,17 +122,14 @@ pub struct Args {
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Create issues into a specific project
-    Create,
+    CreateIssues,
 
     /// Crawl all issues of the specified project
     CrawlIssues,
 
-    /// Craw all issues from all visible projects
-    CrawlAllIssues,
+    /// Simulate all users doing random actions as if they are working in their projects
+    UsersReadWrite,
 
     /// Simulate all users doing random actions as if they are working in their projects
-    SimulateUsersReadWrite,
-
-    /// Simulate all users doing random actions as if they are working in their projects
-    SimulateUsersReadonly,
+    UsersReadonly,
 }

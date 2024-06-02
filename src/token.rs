@@ -7,3 +7,14 @@ pub fn create_captcha_token(secret: &str) -> Result<String> {
     let claims = Claims::create(Duration::from_hours(1)).with_subject("x-client-login");
     key.authenticate(claims)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_captcha_token() {
+        let token = create_captcha_token("secret").unwrap();
+        println!("token: {}", token);
+    }
+}

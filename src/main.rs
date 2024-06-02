@@ -7,7 +7,6 @@ use std::process;
 use crate::error::Result;
 
 pub mod config;
-pub mod crawler;
 pub mod error;
 pub mod models;
 pub mod run;
@@ -40,19 +39,9 @@ async fn main() {
 
 async fn run_command(args: Args, config: Config) -> Result<()> {
     match args.command {
-        Commands::Create => {
-            run::run(config).await?;
-            Ok(())
-        }
-        Commands::CrawlIssues => {
-            run::crawl_project_issues(config).await?;
-            Ok(())
-        }
-        Commands::CrawlAllIssues => {
-            run::crawl_all_projects_issues(config).await?;
-            Ok(())
-        }
-        Commands::SimulateUsersReadonly => Ok(()),
-        Commands::SimulateUsersReadWrite => Ok(()),
+        Commands::CreateIssues => Ok(()),
+        Commands::CrawlIssues => Ok(()),
+        Commands::UsersReadonly => Ok(()),
+        Commands::UsersReadWrite => Ok(()),
     }
 }
