@@ -182,15 +182,18 @@ pub async fn fetch_issue(
     };
 
     let d = Instant::now();
-    let create_res = do_fetch_issue(ctx, project_id, issue_id).await;
+    let fetch_res = do_fetch_issue(ctx, project_id, issue_id).await;
     res.duration = d.elapsed().as_millis();
-    if let Ok(issue_res) = create_res {
-        info!(
-            "{}: {} --> {} ms",
-            issue_res.key, issue_res.title, res.duration
-        );
-        res.data = Some(issue_res);
-    }
+
+    match fetch_res {
+        Ok(issue) => {
+            info!("{}: {} --> {} ms", issue.key, issue.title, res.duration);
+            res.data = Some(issue);
+        }
+        Err(e) => {
+            error!("Error: {}", e);
+        }
+    };
 
     Ok(res)
 }
