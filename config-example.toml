@@ -1,16 +1,16 @@
 # Global config
 [global]
-base_url = "https://example.com/api"
+api_url = "https://example.com/api"
 jwt_secret = "secret"
 
 # Multiple users target, usually do many tasks at once
 [multi_target]
 users = [
-    { username: "user1", password: "secret" },
-    { username: "user2", password: "secret" },
-    { username: "user3", password: "secret" },
-    { username: "user4", password: "secret" },
-    { username: "user5", password: "secret" },
+    { username = "user1", password =  "secret" },
+    { username = "user2", password =  "secret" },
+    { username =  "user3", password =  "secret" },
+    { username =  "user4", password =  "secret" },
+    { username =  "user5", password =  "secret" },
 ]
 issue_count = 10
 issue_type = "user_story"
