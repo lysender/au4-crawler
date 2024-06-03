@@ -15,6 +15,6 @@ mod tests {
     #[test]
     fn test_create_captcha_token() {
         let token = create_captcha_token("secret").unwrap();
-        println!("token: {}", token);
+        assert!(token.len() > 0);
     }
 }

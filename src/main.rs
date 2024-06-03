@@ -3,13 +3,14 @@ use config::Args;
 use config::Commands;
 use config::Config;
 use std::process;
+use tasks::runner::run_crawl_issues;
+use tasks::runner::run_create_issues;
 
 use crate::error::Result;
 
 pub mod config;
 pub mod error;
 pub mod models;
-pub mod run;
 pub mod tasks;
 pub mod token;
 
@@ -39,8 +40,20 @@ async fn main() {
 
 async fn run_command(args: Args, config: Config) -> Result<()> {
     match args.command {
-        Commands::CreateIssues => Ok(()),
-        Commands::CrawlIssues => Ok(()),
+        Commands::CreateIssues => match run_create_issues(config).await {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                eprintln!("{err}");
+                process::exit(1);
+            }
+        },
+        Commands::CrawlIssues => match run_crawl_issues(config).await {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                eprintln!("{err}");
+                process::exit(1);
+            }
+        },
         Commands::UsersReadonly => Ok(()),
         Commands::UsersReadWrite => Ok(()),
     }
