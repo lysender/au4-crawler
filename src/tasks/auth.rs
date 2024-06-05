@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 use reqwest::Client;
+use tracing::error;
 
 use crate::{
     error::Result,
@@ -14,19 +15,20 @@ use super::{JSON_CONTENT_TYPE, USER_AGENT};
 pub async fn authenticate(api_url: &str, payload: AuthPayload) -> Result<AuthContext> {
     let url = format!("{}/auth/token/email", api_url);
     let post_body = serde_json::to_string(&payload)?;
+
     let response = Client::new()
         .post(url)
-        .body(post_body)
         .header(reqwest::header::USER_AGENT, USER_AGENT)
         .header(reqwest::header::CONTENT_TYPE, JSON_CONTENT_TYPE)
+        .body(post_body)
         .send()
         .await?;
 
     if !response.status().is_success() {
-        return Err(anyhow!(
-            "Unable to authenticate. Error: {}",
-            response.status()
-        ));
+        let err_status = response.status();
+        let err_data: String = response.text().await?;
+        error!("Error: {}", err_data);
+        return Err(anyhow!("Unable to authenticate. Error: {}", err_status));
     }
 
     let auth_data: AuthSuccess = response.json().await?;
