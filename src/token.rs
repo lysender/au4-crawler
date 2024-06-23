@@ -1,19 +1,51 @@
-use jwt_simple::prelude::*;
+use anyhow::anyhow;
+use chrono::{Duration, Utc};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
 
-pub fn create_captcha_token(secret: &str) -> Result<String> {
-    // For some reason, there are some miliseconds of drift between the server and the client
-    // Let's just add a 10 second day to fix the issue
-    let now = Clock::now_since_epoch();
-    let drift = Duration::from_secs(10);
+#[derive(Debug, Deserialize, Serialize)]
+struct Claims {
+    sub: String,
+    exp: usize,
+}
 
-    let key = HS256Key::from_bytes(secret.as_bytes());
-    let claims = Claims::create(Duration::from_hours(2))
-        .invalid_before(now - drift)
-        .with_subject("x-client-login");
-    let token = key.authenticate(claims)?;
-    Ok(format!("x-client-login:{}", token))
+pub fn create_captcha_token(secret: &str) -> Result<String> {
+    let exp = Utc::now() + Duration::hours(2);
+
+    let claims = Claims {
+        sub: "x-client-login".to_string(),
+        exp: exp.timestamp() as usize,
+    };
+
+    let Ok(token) = encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(secret.as_bytes()),
+    ) else {
+        return Err(anyhow!("Error creating token"));
+    };
+
+    let new_token = format!("x-client-login:{}", token);
+    Ok(new_token)
+}
+
+pub fn verify_captcha_token(token: &str, secret: &str) -> Result<String> {
+    let raw_token = token.replace("x-client-login:", "");
+    let Ok(decoded) = decode::<Claims>(
+        &raw_token,
+        &DecodingKey::from_secret(secret.as_bytes()),
+        &Validation::default(),
+    ) else {
+        return Err(anyhow!("Error decoding token"));
+    };
+
+    if decoded.claims.sub.len() == 0 {
+        return Err(anyhow!("Invalid token"));
+    }
+
+    Ok(decoded.claims.sub)
 }
 
 #[cfg(test)]
@@ -28,9 +60,7 @@ mod tests {
         assert!(token.starts_with("x-client-login:"));
 
         // Validate claims
-        let key = HS256Key::from_bytes("secret".as_bytes());
-        let raw_token = token.replace("x-client-login:", "");
-        let claims = key.verify_token::<NoCustomClaims>(&raw_token, None);
-        assert!(claims.is_ok());
+        let sub = verify_captcha_token(&token, "secret").unwrap();
+        assert_eq!(sub, "x-client-login");
     }
 }
