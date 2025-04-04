@@ -121,6 +121,9 @@ pub struct Args {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
+    /// Creates a project with some epics and issues
+    CreateSeedProject,
+
     /// Create issues into a specific project
     CreateIssues,
 

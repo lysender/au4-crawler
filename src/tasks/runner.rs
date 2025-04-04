@@ -19,23 +19,80 @@ use crate::{
         auth::authenticate,
         iam::fetch_project_members,
         issues::{create_issue, fetch_epics, fetch_initiatives, fetch_issue, fetch_issues},
-        projects::{fetch_labels, fetch_project, fetch_statuses},
+        projects::{
+            create_project, fetch_labels, fetch_project, fetch_project_with_retries, fetch_statuses,
+        },
     },
     token::create_captcha_token,
 };
 
-pub async fn run_create_issues(config: Config) -> Result<()> {
-    let timer = Instant::now();
+pub async fn run_create_seed_project(
+    config: &GlobalConfig,
+    single_target: &Option<SingleTargetConfig>,
+) -> Result<()> {
     // Authenticate
-    let api_url = config.global.api_url.as_str();
-    let jwt_secret = config.global.jwt_secret.as_str();
-    let Some(target) = config.single_target else {
+    let api_url = config.api_url.as_str();
+    let jwt_secret = config.jwt_secret.as_str();
+    let Some(target) = single_target.as_ref() else {
         return Err(anyhow!("Single target config must be present."));
     };
     let captcha_token = create_captcha_token(jwt_secret)?;
     let payload = AuthPayload {
-        username: target.username,
-        password: target.password,
+        username: target.username.clone(),
+        password: target.password.clone(),
+        captcha_token,
+    };
+    let context = authenticate(api_url, payload).await?;
+    info!("Logged in as {}", context.user.username);
+
+    // Create project
+    let project = create_project(&context).await?;
+
+    // Check until project is accessible
+    let _ = fetch_project_with_retries(&context, project.id.as_str(), 5).await?;
+
+    let Some(target) = single_target else {
+        return Err(anyhow!("Single target config must be present."));
+    };
+
+    // Check
+    let epic_config = SingleTargetConfig {
+        username: target.username.clone(),
+        password: target.password.clone(),
+        project_id: project.id.clone(),
+        issue_count: 10,
+        issue_type: Some("epic".to_string()),
+    };
+
+    let _ = run_create_issues(config, &Some(epic_config)).await?;
+
+    let issue_config = SingleTargetConfig {
+        username: target.username.clone(),
+        password: target.password.clone(),
+        project_id: project.id.clone(),
+        issue_count: 50,
+        issue_type: Some("user_story".to_string()),
+    };
+    let _ = run_create_issues(config, &Some(issue_config)).await?;
+
+    Ok(())
+}
+
+pub async fn run_create_issues(
+    config: &GlobalConfig,
+    single_target: &Option<SingleTargetConfig>,
+) -> Result<()> {
+    let timer = Instant::now();
+    // Authenticate
+    let api_url = config.api_url.as_str();
+    let jwt_secret = config.jwt_secret.as_str();
+    let Some(target) = single_target else {
+        return Err(anyhow!("Single target config must be present."));
+    };
+    let captcha_token = create_captcha_token(jwt_secret)?;
+    let payload = AuthPayload {
+        username: target.username.clone(),
+        password: target.password.clone(),
         captcha_token,
     };
     let context = authenticate(api_url, payload).await?;
