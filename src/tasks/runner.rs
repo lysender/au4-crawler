@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use bigdecimal::BigDecimal;
-use fake::faker::company::en::CatchPhase;
 use fake::Fake;
+use fake::faker::company::en::CatchPhrase;
 use rand::Rng;
 use std::time::Instant;
 use tokio::task::JoinSet;
@@ -98,13 +98,13 @@ pub async fn run_create_issues(config: Config) -> Result<()> {
 
         let default_labels: Vec<String> = vec![];
 
-        let title: String = CatchPhase().fake();
+        let title: String = CatchPhrase().fake();
         let description = format!(
             "{}, {}, {}, {}",
-            CatchPhase().fake::<String>(),
-            CatchPhase().fake::<String>(),
-            CatchPhase().fake::<String>(),
-            CatchPhase().fake::<String>()
+            CatchPhrase().fake::<String>(),
+            CatchPhrase().fake::<String>(),
+            CatchPhrase().fake::<String>(),
+            CatchPhrase().fake::<String>()
         );
 
         let mut payload = CreateIssueBody {
@@ -379,7 +379,7 @@ fn get_item_chance(chance: u32) -> bool {
         panic!("Chance must be between 0 to 100")
     }
 
-    let value = rand::thread_rng().gen_range(0..=100);
+    let value = rand::rng().random_range(0..=100);
     value <= chance
 }
 
@@ -389,7 +389,7 @@ fn get_random_item<T>(items: &Vec<T>, chance: u32) -> Option<&T> {
 
     if length > 0 && return_item {
         let max_length = length - 1;
-        let key = rand::thread_rng().gen_range(0..=max_length);
+        let key = rand::rng().random_range(0..=max_length);
         return items.get(key);
     }
     None
