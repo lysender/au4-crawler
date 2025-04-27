@@ -3,6 +3,7 @@ use config::Args;
 use config::Commands;
 use config::Config;
 use std::process;
+use tasks::runner::run_crawl_all_issues;
 use tasks::runner::run_crawl_issues;
 use tasks::runner::run_create_issues;
 use tasks::runner::run_create_seed_project;
@@ -54,6 +55,13 @@ async fn run_command(args: Args, config: Config) -> Result<()> {
                 }
             }
         }
+        Commands::CrawlAllIssues => match run_crawl_all_issues(config).await {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                eprintln!("{err}");
+                process::exit(1);
+            }
+        },
         Commands::CrawlIssues => match run_crawl_issues(config).await {
             Ok(_) => Ok(()),
             Err(err) => {

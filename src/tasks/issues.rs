@@ -133,11 +133,15 @@ async fn do_create_issue(
 
 pub async fn fetch_issues(
     ctx: &AuthContext,
-    project_id: &str,
+    project_id: Option<&str>,
     page: u32,
     per_page: u32,
 ) -> Result<PaginationResult<Issue>> {
-    let url = format!("{}/projects/{}/issues", ctx.api_url.as_str(), project_id);
+    let url = match project_id {
+        Some(pid) => format!("{}/projects/{}/issues", ctx.api_url.as_str(), pid),
+        None => format!("{}/issues", ctx.api_url.as_str()),
+    };
+
     let query_params = vec![
         ("state", "active".to_string()),
         ("page", page.to_string()),
@@ -212,7 +216,7 @@ async fn do_fetch_issue(ctx: &AuthContext, project_id: &str, issue_id: &str) -> 
     )];
 
     let response = Client::new()
-        .get(url)
+        .get(&url)
         .query(&query_params)
         .header(reqwest::header::USER_AGENT, USER_AGENT)
         .header(reqwest::header::CONTENT_TYPE, JSON_CONTENT_TYPE)
@@ -224,7 +228,11 @@ async fn do_fetch_issue(ctx: &AuthContext, project_id: &str, issue_id: &str) -> 
         let issue: Issue = response.json().await?;
         Ok(issue)
     } else {
-        let message = format!("Unable to fetch issue. Error: {}", response.status());
+        let message = format!(
+            "Unable to fetch issue. Error: {}, URL={}",
+            response.status(),
+            url
+        );
         error!("{}", message);
         Err(anyhow!(message))
     }

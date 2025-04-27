@@ -282,6 +282,125 @@ pub async fn run_create_issues(
     Ok(())
 }
 
+pub async fn run_crawl_all_issues(config: Config) -> Result<()> {
+    let timer = Instant::now();
+    // Authenticate
+    let api_url = config.global.api_url.as_str();
+    let jwt_secret = config.global.jwt_secret.as_str();
+    let Some(target) = config.single_target else {
+        return Err(anyhow!("Single target config must be present."));
+    };
+    let captcha_token = create_captcha_token(jwt_secret)?;
+    let payload = AuthPayload {
+        username: target.username,
+        password: target.password,
+        captcha_token,
+    };
+    let context = authenticate(api_url, payload).await?;
+    info!("Logged in as {}", context.user.username);
+
+    let crawl_timer = Instant::now();
+
+    // Gather stats
+    let mut total_reqs: u32 = 0;
+    let mut failed: u32 = 0;
+    let mut min_duration: u128 = 0;
+    let mut max_duration: u128 = 0;
+    let mut sum: u128 = 0;
+
+    let mut has_more = true;
+    let mut page = 1;
+
+    while has_more {
+        // Fetch listing
+        let listing = fetch_issues(&context, None, page, 50).await?;
+
+        has_more = false;
+        if listing.data.len() > 0 && listing.meta.total_records > 0 {
+            // Queue current batch
+            let mut set = JoinSet::new();
+            for issue in listing.data {
+                let context_copy = context.clone();
+                let issue_id = issue.id.clone();
+                let project_id_copy = issue.project_id.clone();
+
+                set.spawn(async move {
+                    fetch_issue(&context_copy, project_id_copy.as_str(), issue_id.as_str()).await
+                });
+            }
+
+            let req_count: u32 = set.len() as u32;
+            total_reqs += req_count;
+
+            // Process batch
+            while let Some(join_res) = set.join_next().await {
+                match join_res {
+                    Ok(res) => match res {
+                        Ok(issue_res) => {
+                            if let None = issue_res.data {
+                                failed += 1;
+                            }
+
+                            sum += issue_res.duration;
+
+                            if min_duration == 0 {
+                                min_duration = issue_res.duration;
+                            } else if issue_res.duration < min_duration {
+                                min_duration = issue_res.duration;
+                            }
+
+                            if issue_res.duration > max_duration {
+                                max_duration = issue_res.duration;
+                            }
+                        }
+                        Err(issue_err) => {
+                            error!("Error: {:?}", issue_err);
+                        }
+                    },
+                    Err(err) => {
+                        error!("Error: {:?}", err);
+                    }
+                }
+            }
+
+            // See if there are still more items
+            if listing.meta.total_pages > page {
+                page += 1;
+                has_more = true;
+            }
+        }
+    }
+
+    let succeed = total_reqs - failed;
+    let big_success_ratio =
+        (BigDecimal::from(succeed) / BigDecimal::from(total_reqs)) * BigDecimal::from(100);
+    let success_ratio = big_success_ratio.round(2);
+    let big_sum = BigDecimal::from(sum);
+    let big_total_reqs = BigDecimal::from(total_reqs);
+    let big_avg = big_sum / big_total_reqs.clone();
+    let avg = big_avg.round(2);
+
+    let total_time = timer.elapsed().as_millis();
+    let total_crawl_time = crawl_timer.elapsed().as_millis();
+    let big_crawl_total_time = BigDecimal::from(total_crawl_time);
+    let big_rps: BigDecimal = big_total_reqs / (big_crawl_total_time / 1000.0);
+    let rps = big_rps.round(2);
+
+    // Print stats
+    println!("");
+    println!("Total requests: {}", total_reqs);
+    println!("Succeed: {}", succeed);
+    println!("Failed: {}", failed);
+    println!("Success rate: {}%", success_ratio);
+    println!("Min: {} ms", min_duration);
+    println!("Avg: {} ms", avg);
+    println!("Max: {} ms", max_duration);
+    println!("Requests per second: {}", rps);
+    println!("Run duration: {} ms", total_time);
+
+    Ok(())
+}
+
 pub async fn run_crawl_issues(config: Config) -> Result<()> {
     let timer = Instant::now();
     // Authenticate
@@ -317,7 +436,7 @@ pub async fn run_crawl_issues(config: Config) -> Result<()> {
 
     while has_more {
         // Fetch listing
-        let listing = fetch_issues(&context, project_id, page, 50).await?;
+        let listing = fetch_issues(&context, Some(project_id), page, 50).await?;
 
         has_more = false;
         if listing.data.len() > 0 && listing.meta.total_records > 0 {
@@ -326,7 +445,7 @@ pub async fn run_crawl_issues(config: Config) -> Result<()> {
             for issue in listing.data {
                 let context_copy = context.clone();
                 let issue_id = issue.id.clone();
-                let project_id_copy = target.project_id.clone();
+                let project_id_copy = issue.project_id.clone();
 
                 set.spawn(async move {
                     fetch_issue(&context_copy, project_id_copy.as_str(), issue_id.as_str()).await

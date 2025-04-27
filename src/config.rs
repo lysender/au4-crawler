@@ -127,6 +127,9 @@ pub enum Commands {
     /// Create issues into a specific project
     CreateIssues,
 
+    /// Crawl all issues available to the user
+    CrawlAllIssues,
+
     /// Crawl all issues of the specified project
     CrawlIssues,
 
