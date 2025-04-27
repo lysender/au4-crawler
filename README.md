@@ -52,7 +52,7 @@ For the secret startup project.
 ## Usage
 
 ```shell
-au4-crawler --config path/to/config.toml
+bxcrawler --config path/to/config.toml
 ```
 ## Config
 

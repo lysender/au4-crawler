@@ -1,5 +1,5 @@
 [package]
-name = "au4-crawler"
+name = "bxcrawler"
 version = "0.2.1"
 edition = "2024"
 
